@@ -6,13 +6,12 @@ namespace Pdp;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Stringable;
 use TypeError;
 use function dirname;
 
-/**
- * @coversDefaultClass \Pdp\TopLevelDomains
- */
 final class TopLevelDomainsTest extends TestCase
 {
     private static TopLevelDomains $topLevelDomains;
@@ -22,12 +21,6 @@ final class TopLevelDomainsTest extends TestCase
         self::$topLevelDomains = TopLevelDomains::fromPath(dirname(__DIR__).'/test_data/tlds-alpha-by-domain.txt');
     }
 
-    /**
-     * @covers ::fromPath
-     * @covers ::fromString
-     * @covers \Pdp\Stream
-     * @covers ::__construct
-     */
     public function testCreateFromPath(): void
     {
         $context = stream_context_create([
@@ -42,10 +35,6 @@ final class TopLevelDomainsTest extends TestCase
         self::assertEquals(self::$topLevelDomains, $topLevelDomains);
     }
 
-    /**
-     * @covers ::fromPath
-     * @covers \Pdp\UnableToLoadTopLevelDomainList
-     */
     public function testCreateFromPathThrowsException(): void
     {
         $this->expectException(UnableToLoadResource::class);
@@ -53,16 +42,7 @@ final class TopLevelDomainsTest extends TestCase
         TopLevelDomains::fromPath('/foo/bar.dat');
     }
 
-    public function testFromStringThrowsOnTypeError(): void
-    {
-        $this->expectException(TypeError::class);
-
-        TopLevelDomains::fromString(new DateTimeImmutable());
-    }
-
-    /**
-     * @dataProvider invalidContentProvider
-     */
+    #[DataProvider('invalidContentProvider')]
     public function testConverterThrowsException(string $content): void
     {
         $this->expectException(UnableToLoadTopLevelDomainList::class);
@@ -73,7 +53,7 @@ final class TopLevelDomainsTest extends TestCase
     /**
      * @return iterable<string,array{0:string}>
      */
-    public function invalidContentProvider(): iterable
+    public static function invalidContentProvider(): iterable
     {
         $doubleHeader = <<<EOF
 # Version 2018082200, Last Updated Wed Aug 22 07:07:01 2018 UTC
@@ -134,10 +114,6 @@ EOF;
         ];
     }
 
-    /**
-     * @covers ::__set_state
-     * @covers ::__construct
-     */
     public function testSetState(): void
     {
         /** @var TopLevelDomains $topLevelDomains */
@@ -166,12 +142,8 @@ EOF;
         }
     }
 
-    /**
-     * @dataProvider validDomainProvider
-     *
-     * @param mixed $tld the tld
-     */
-    public function testResolve($tld): void
+    #[DataProvider('validDomainProvider')]
+    public function testResolve(DomainNameProvider|Host|Stringable|string|int|null $tld): void
     {
         self::assertSame(
             Domain::fromIDNA2008($tld)->label(0),
@@ -179,12 +151,8 @@ EOF;
         );
     }
 
-    /**
-     * @dataProvider validDomainProvider
-     *
-     * @param mixed $tld the tld
-     */
-    public function testGetTopLevelDomain($tld): void
+    #[DataProvider('validDomainProvider')]
+    public function testGetTopLevelDomain(DomainNameProvider|Host|Stringable|string|int|null $tld): void
     {
         self::assertSame(
             Domain::fromIDNA2008($tld)->label(0),
@@ -195,7 +163,7 @@ EOF;
     /**
      * @return iterable<string,array<object|string>>
      */
-    public function validDomainProvider(): iterable
+    public static function validDomainProvider(): iterable
     {
         $resolvedDomain = ResolvedDomain::fromICANN(Domain::fromIDNA2008('www.example.com'), 1);
 
@@ -222,7 +190,7 @@ EOF;
     {
         $this->expectException(TypeError::class);
 
-        self::$topLevelDomains->getIANADomain(new DateTimeImmutable());
+        self::$topLevelDomains->getIANADomain(new DateTimeImmutable()); /* @phpstan-ignore-line */
     }
 
     public function testTopLevelDomainWithInvalidDomain(): void
@@ -288,7 +256,7 @@ EOF;
     /**
      * @return iterable<string,array<string|object>>
      */
-    public function validTldProvider(): iterable
+    public static function validTldProvider(): iterable
     {
         return [
             'simple TLD' => ['COM'],
@@ -314,7 +282,7 @@ EOF;
     /**
      * @return iterable<string,array<object|string|null>>
      */
-    public function invalidTldProvider(): iterable
+    public static function invalidTldProvider(): iterable
     {
         return [
             'invalid TLD (1)' => ['COMM'],

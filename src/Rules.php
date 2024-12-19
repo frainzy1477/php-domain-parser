@@ -4,22 +4,19 @@ declare(strict_types=1);
 
 namespace Pdp;
 
+use SplFileObject;
 use SplTempFileObject;
-use TypeError;
+use Stringable;
 use function array_pop;
 use function explode;
-use function gettype;
-use function is_object;
-use function is_string;
-use function method_exists;
 use function preg_match;
-use function strpos;
 use function substr;
 
 final class Rules implements PublicSuffixList
 {
     private const ICANN_DOMAINS = 'ICANN_DOMAINS';
     private const PRIVATE_DOMAINS = 'PRIVATE_DOMAINS';
+    private const UNKNOWN_DOMAINS = 'UNKNOWN_DOMAINS';
 
     private const REGEX_PSL_SECTION = ',^// ===(?<point>BEGIN|END) (?<type>ICANN|PRIVATE) DOMAINS===,';
     private const PSL_SECTION = [
@@ -34,18 +31,10 @@ final class Rules implements PublicSuffixList
     ];
 
     /**
-     * PSL rules as a multidimensional associative array.
-     *
-     * @var array{ICANN_DOMAINS: array<array>, PRIVATE_DOMAINS: array<array>}
-     */
-    private array $rules;
-
-    /**
      * @param array{ICANN_DOMAINS: array<array>, PRIVATE_DOMAINS: array<array>} $rules
      */
-    private function __construct(array $rules)
+    private function __construct(private readonly array $rules)
     {
-        $this->rules = $rules;
     }
 
     /**
@@ -54,7 +43,7 @@ final class Rules implements PublicSuffixList
      * @param null|resource $context
      *
      * @throws UnableToLoadResource         If the rules can not be loaded from the path
-     * @throws UnableToLoadPublicSuffixList If the rules contains in the resource are invalid
+     * @throws UnableToLoadPublicSuffixList If the rules contain in the resource are invalid
      */
     public static function fromPath(string $path, $context = null): self
     {
@@ -64,21 +53,11 @@ final class Rules implements PublicSuffixList
     /**
      * Returns a new instance from a string.
      *
-     * @param object|string $content a string or an object which exposes the __toString method
-     *
-     * @throws UnableToLoadPublicSuffixList If the rules contains in the resource are invalid
+     * @throws UnableToLoadPublicSuffixList If the rules contain in the resource are invalid
      */
-    public static function fromString($content): self
+    public static function fromString(Stringable|string $content): self
     {
-        if (is_object($content) && method_exists($content, '__toString')) {
-            $content = (string) $content;
-        }
-
-        if (!is_string($content)) {
-            throw new TypeError('The content to be converted should be a string or a Stringable object, `'.gettype($content).'` given.');
-        }
-
-        return new self(self::parse($content));
+        return new self(self::parse((string) $content));
     }
 
     /**
@@ -92,11 +71,11 @@ final class Rules implements PublicSuffixList
         $section = '';
         $file = new SplTempFileObject();
         $file->fwrite($content);
-        $file->setFlags(SplTempFileObject::DROP_NEW_LINE | SplTempFileObject::READ_AHEAD | SplTempFileObject::SKIP_EMPTY);
+        $file->setFlags(SplFileObject::DROP_NEW_LINE | SplFileObject::READ_AHEAD | SplFileObject::SKIP_EMPTY);
         /** @var string $line */
         foreach ($file as $line) {
             $section = self::getSection($section, $line);
-            if (in_array($section, [self::PRIVATE_DOMAINS, self::ICANN_DOMAINS], true) && false === strpos($line, '//')) {
+            if (in_array($section, [self::PRIVATE_DOMAINS, self::ICANN_DOMAINS], true) && !str_contains($line, '//')) {
                 $rules[$section] = self::addRule($rules[$section], explode('.', $line));
             }
         }
@@ -149,7 +128,7 @@ final class Rules implements PublicSuffixList
         }
 
         $isDomain = true;
-        if (0 === strpos($rule, '!')) {
+        if (str_starts_with($rule, '!')) {
             $rule = substr($rule, 1);
             $isDomain = false;
         }
@@ -173,7 +152,7 @@ final class Rules implements PublicSuffixList
     }
 
     /**
-     * @param mixed $host a type that supports instantiating a Domain from.
+     * @param int|DomainNameProvider|Host|string|Stringable|null $host a type that supports instantiating a Domain from.
      */
     public function resolve($host): ResolvedDomainName
     {
@@ -181,31 +160,28 @@ final class Rules implements PublicSuffixList
             return $this->getCookieDomain($host);
         } catch (UnableToResolveDomain $exception) {
             return ResolvedDomain::fromUnknown($exception->domain());
-        } catch (SyntaxError $exception) {
+        } catch (SyntaxError) {
             return ResolvedDomain::fromUnknown(Domain::fromIDNA2008(null));
         }
     }
 
     /**
-     * @param mixed $host the domain value
+     * @param int|DomainNameProvider|Host|string|Stringable|null $host the domain value
      */
     public function getCookieDomain($host): ResolvedDomainName
     {
         $domain = $this->validateDomain($host);
-        [$suffixLength, $section] = $this->resolveSuffix($domain, '');
-        if (self::ICANN_DOMAINS === $section) {
-            return ResolvedDomain::fromICANN($domain, $suffixLength);
-        }
+        [$suffixLength, $section] = $this->resolveSuffix($domain, self::UNKNOWN_DOMAINS);
 
-        if (self::PRIVATE_DOMAINS === $section) {
-            return ResolvedDomain::fromPrivate($domain, $suffixLength);
-        }
-
-        return ResolvedDomain::fromUnknown($domain, $suffixLength);
+        return match (true) {
+            self::ICANN_DOMAINS === $section => ResolvedDomain::fromICANN($domain, $suffixLength),
+            self::PRIVATE_DOMAINS === $section => ResolvedDomain::fromPrivate($domain, $suffixLength),
+            default => ResolvedDomain::fromUnknown($domain, $suffixLength),
+        };
     }
 
     /**
-     * @param mixed $host a type that supports instantiating a Domain from.
+     * @param int|DomainNameProvider|Host|string|Stringable|null $host a type that supports instantiating a Domain from.
      */
     public function getICANNDomain($host): ResolvedDomainName
     {
@@ -219,7 +195,7 @@ final class Rules implements PublicSuffixList
     }
 
     /**
-     * @param mixed $host a type that supports instantiating a Domain from.
+     * @param int|DomainNameProvider|Host|string|Stringable|null $host a type that supports instantiating a Domain from.
      */
     public function getPrivateDomain($host): ResolvedDomainName
     {
@@ -235,12 +211,10 @@ final class Rules implements PublicSuffixList
     /**
      * Assert the domain is valid and is resolvable.
      *
-     * @param mixed $domain a type that supports instantiating a Domain from.
-     *
      * @throws SyntaxError           If the domain is invalid
      * @throws UnableToResolveDomain If the domain can not be resolved
      */
-    private function validateDomain($domain): DomainName
+    private function validateDomain(int|DomainNameProvider|Host|string|Stringable|null $domain): DomainName
     {
         if ($domain instanceof DomainNameProvider) {
             $domain = $domain->domain();
@@ -258,15 +232,17 @@ final class Rules implements PublicSuffixList
     }
 
     /**
-     * Returns the length and the section of thhe resolved effective top level domain.
+     * Returns the length and the section of the resolved effective top level domain.
      *
-     * @return array{0: int, 1:string}
+     * @param Rules::UNKNOWN_DOMAINS|Rules::ICANN_DOMAINS|Rules::PRIVATE_DOMAINS $section
+     *
+     * @return array{0: int, 1:Rules::UNKNOWN_DOMAINS|Rules::ICANN_DOMAINS|Rules::PRIVATE_DOMAINS}
      */
     private function resolveSuffix(DomainName $domain, string $section): array
     {
         $icannSuffixLength = $this->getPublicSuffixLengthFromSection($domain, self::ICANN_DOMAINS);
         if (1 > $icannSuffixLength) {
-            return [1, ''];
+            return [1, self::UNKNOWN_DOMAINS];
         }
 
         if (self::ICANN_DOMAINS === $section) {
@@ -302,9 +278,8 @@ final class Rules implements PublicSuffixList
 
             //no match found
             if (!array_key_exists($label, $rules)) {
-                // for private domain suffix MUST be fully matched else no suffix is found
-                // https://github.com/jeremykendall/php-domain-parser/issues/321
-                if (self::PRIVATE_DOMAINS === $section && [] !== $rules) {
+                // Suffix MUST be fully matched else no suffix is found for private domain
+                if (self::PRIVATE_DOMAINS === $section && self::hasRemainingRules($rules)) {
                     $labelCount = 0;
                 }
                 break;
@@ -316,5 +291,16 @@ final class Rules implements PublicSuffixList
         }
 
         return $labelCount;
+    }
+
+    private static function hasRemainingRules(array $rules): bool
+    {
+        foreach ($rules as $rule) {
+            if ([] !== $rule) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

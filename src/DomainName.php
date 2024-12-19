@@ -6,6 +6,7 @@ namespace Pdp;
 
 use Iterator;
 use IteratorAggregate;
+use Stringable;
 
 /**
  * @see https://tools.ietf.org/html/rfc1034#section-3.5
@@ -36,7 +37,7 @@ interface DomainName extends Host, IteratorAggregate
     /**
      * Returns the object labels.
      *
-     * @return array<int, string>
+     * @return list<string>
      */
     public function labels(): array;
 
@@ -46,9 +47,9 @@ interface DomainName extends Host, IteratorAggregate
      * If a value is specified only the keys associated with
      * the given value will be returned
      *
-     * @return array<int>
+     * @return list<int>
      */
-    public function keys(string $label = null): array;
+    public function keys(?string $label = null): array;
 
     /**
      * The external iterator iterates over the DomainInterface labels
@@ -62,19 +63,15 @@ interface DomainName extends Host, IteratorAggregate
      * Prepends a label to the domain.
      *
      * @see ::withLabel
-     *
-     * @param string|null|object $label a domain label
      */
-    public function prepend($label): self;
+    public function prepend(DomainNameProvider|Host|Stringable|string|int|null $label): self;
 
     /**
      * Appends a label to the domain.
      *
      * @see ::withLabel
-     *
-     * @param string|null|object $label a domain label
      */
-    public function append($label): self;
+    public function append(DomainNameProvider|Host|Stringable|string|int|null $label): self;
 
     /**
      * Returns an instance with the specified label added at the specified key.
@@ -85,12 +82,12 @@ interface DomainName extends Host, IteratorAggregate
      * If $key is non-negative, the added label will be the label at $key position from the start.
      * If $key is negative, the added label will be the label at $key position from the end.
      *
-     * @param string|null|object $label a domain label
+     * @param DomainNameProvider|Host|Stringable|string|int|null $label a domain label
      *
      * @throws CannotProcessHost If the key is out of bounds
      * @throws CannotProcessHost If the label is converted to the NULL value
      */
-    public function withLabel(int $key, $label): self;
+    public function withLabel(int $key, DomainNameProvider|Host|Stringable|string|int|null $label): self;
 
     /**
      * Returns an instance with the label at the specified key removed.
@@ -104,7 +101,7 @@ interface DomainName extends Host, IteratorAggregate
      *
      * @throws CannotProcessHost If the key is out of bounds
      */
-    public function withoutLabel(int $key, int ...$keys): self;
+    public function withoutLabel(int ...$keys): self;
 
     /**
      * Returns an instance with all labels removed.
@@ -122,5 +119,5 @@ interface DomainName extends Host, IteratorAggregate
      *
      * If $length is null it returns all elements from $offset to the end of the Domain.
      */
-    public function slice(int $offset, int $length = null): self;
+    public function slice(int $offset, ?int $length = null): self;
 }

@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Pdp;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use TypeError;
 use function date_create;
 
-/**
- * @coversDefaultClass \Pdp\ResolvedDomain
- */
 final class ResolvedDomainTest extends TestCase
 {
     public function testItCanBeCreatedWithAnotherResolvedDomain(): void
@@ -31,10 +29,7 @@ final class ResolvedDomainTest extends TestCase
         self::assertNull($domain->secondLevelDomain()->value());
     }
 
-    /**
-     * @dataProvider provideWrongConstructor
-     * @param ?string $domain
-     */
+    #[DataProvider('provideWrongConstructor')]
     public function testItThrowsExceptionMisMatchPublicSuffixDomain(?string $domain, int $length): void
     {
         $this->expectException(UnableToResolveDomain::class);
@@ -45,7 +40,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<string,array{domain:string, length:int}>
      */
-    public function provideWrongConstructor(): iterable
+    public static function provideWrongConstructor(): iterable
     {
         return [
             'domain and public suffix are the same' => [
@@ -69,10 +64,7 @@ final class ResolvedDomainTest extends TestCase
         self::assertSame('www.ulb.ac.be', $domain->toString());
     }
 
-    /**
-     * @dataProvider countableProvider
-     * @param ?string $domain
-     */
+    #[DataProvider('countableProvider')]
     public function testItImplementsCountable(?string $domain, int $nbLabels): void
     {
         self::assertCount($nbLabels, ResolvedDomain::fromUnknown($domain));
@@ -81,7 +73,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<string,array{0:string|null, 1:int}>
      */
-    public function countableProvider(): iterable
+    public static function countableProvider(): iterable
     {
         return [
             'null' => [null, 0],
@@ -91,15 +83,7 @@ final class ResolvedDomainTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider toUnicodeProvider
-     * @param ?string $domain
-     * @param ?string $publicSuffix
-     * @param ?string $expectedDomain
-     * @param ?string $expectedSuffix
-     * @param ?string $expectedIDNDomain
-     * @param ?string $expectedIDNSuffix
-     */
+    #[DataProvider('toUnicodeProvider')]
     public function testItCanBeConvertedToUnicode(
         ?string $domain,
         ?string $publicSuffix,
@@ -121,7 +105,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<string,array{domain:string|null, publicSuffix:string|null, expectedDomain:string|null, expectedSuffix:string|null, expectedIDNDomain:string|null, expectedIDNSuffix:string|null}>
      */
-    public function toUnicodeProvider(): iterable
+    public static function toUnicodeProvider(): iterable
     {
         return [
             'simple domain' => [
@@ -183,22 +167,14 @@ final class ResolvedDomainTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider toAsciiProvider
-     * @param ?string $domain
-     * @param ?string $publicSuffix
-     * @param ?string $expectedDomain
-     * @param ?string $expectedSuffix
-     * @param ?string $expectedAsciiDomain
-     * @param ?string $expectedAsciiSuffix
-     */
+    #[DataProvider('toAsciiProvider')]
     public function testItCanBeConvertedToAscii(
         ?string $domain,
         ?string $publicSuffix,
         ?string $expectedDomain,
         ?string $expectedSuffix,
-        ?string $expectedAsciiDomain,
-        ?string $expectedAsciiSuffix
+        ?string $expectedIDNDomain,
+        ?string $expectedIDNSuffix
     ): void {
         $domain = ResolvedDomain::fromUnknown(Domain::fromIDNA2003($domain), count(Domain::fromIDNA2003($publicSuffix)));
         self::assertSame($expectedDomain, $domain->value());
@@ -206,14 +182,14 @@ final class ResolvedDomainTest extends TestCase
 
         /** @var ResolvedDomain $domainIDN */
         $domainIDN = $domain->toAscii();
-        self::assertSame($expectedAsciiDomain, $domainIDN->value());
-        self::assertSame($expectedAsciiSuffix, $domainIDN->suffix()->value());
+        self::assertSame($expectedIDNDomain, $domainIDN->value());
+        self::assertSame($expectedIDNSuffix, $domainIDN->suffix()->value());
     }
 
     /**
      * @return iterable<string,array{domain:string|null, publicSuffix:string|null, expectedDomain:string|null, expectedSuffix:string|null, expectedIDNDomain:string|null, expectedIDNSuffix:string|null}>
      */
-    public function toAsciiProvider(): iterable
+    public static function toAsciiProvider(): iterable
     {
         return [
             'simple domain' => [
@@ -259,12 +235,8 @@ final class ResolvedDomainTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider withSubDomainWorksProvider
-     *
-     * @param DomainName|string|null $subdomain the subdomain to add
-     */
-    public function testItCanHaveItsSubDomainChanged(ResolvedDomain $domain, $subdomain, string $expected = null): void
+    #[DataProvider('withSubDomainWorksProvider')]
+    public function testItCanHaveItsSubDomainChanged(ResolvedDomain $domain, DomainName|string|null $subdomain, ?string $expected = null): void
     {
         $result = $domain->withSubDomain($subdomain);
 
@@ -276,7 +248,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<string,array{domain:ResolvedDomain, subdomain:DomainName|string|null, expected:string|null}>
      */
-    public function withSubDomainWorksProvider(): iterable
+    public static function withSubDomainWorksProvider(): iterable
     {
         return [
             'simple addition' => [
@@ -332,18 +304,13 @@ final class ResolvedDomainTest extends TestCase
     {
         $this->expectException(TypeError::class);
 
-        ResolvedDomain::fromICANN('www.example.com', 1)->withSubDomain(date_create());
+        ResolvedDomain::fromICANN('www.example.com', 1)->withSubDomain(date_create()); /* @phpstan-ignore-line */
     }
 
-    /**
-     * @dataProvider withPublicSuffixWorksProvider
-     *
-     * @param mixed   $publicSuffix the public suffix
-     * @param ?string $expected
-     */
+    #[DataProvider('withPublicSuffixWorksProvider')]
     public function testItCanChangeItsSuffix(
         ResolvedDomain $domain,
-        $publicSuffix,
+        EffectiveTopLevelDomain|string|null $publicSuffix,
         ?string $expected,
         bool $isKnown,
         bool $isICANN,
@@ -361,7 +328,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<string, array{domain:ResolvedDomain, publicSuffix:EffectiveTopLevelDomain|string|null, expected:string|null, isKnown:bool,isICANN:bool, isPrivate:bool}>
      */
-    public function withPublicSuffixWorksProvider(): iterable
+    public static function withPublicSuffixWorksProvider(): iterable
     {
         $baseDomain = ResolvedDomain::fromICANN('example.com', 1);
 
@@ -448,10 +415,7 @@ final class ResolvedDomainTest extends TestCase
         ResolvedDomain::fromUnknown(null)->withSuffix('www');
     }
 
-    /**
-     * @dataProvider resolveCustomIDNAOptionsProvider
-     * @param ?string $expectedSubDomain
-     */
+    #[DataProvider('resolveCustomIDNAOptionsProvider')]
     public function testItCanWorksWithIDNAOptions(
         string $domainName,
         string $publicSuffix,
@@ -473,7 +437,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<string,array{0:string, 1:string, 2:string, 3:string, 4:string, 5:string, 6:string|null}>
      */
-    public function resolveCustomIDNAOptionsProvider(): iterable
+    public static function resolveCustomIDNAOptionsProvider(): iterable
     {
         return [
             'without deviation characters' => [
@@ -515,14 +479,7 @@ final class ResolvedDomainTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider withSldWorksProvider
-     * @param ?string $host
-     * @param ?string $publicSuffix
-     * @param ?string $sld
-     * @param ?string $expectedSld
-     * @param ?string $expectedHost
-     */
+    #[DataProvider('withSldWorksProvider')]
     public function testWithSecondLevelDomain(
         ?string $host,
         ?string $publicSuffix,
@@ -542,7 +499,7 @@ final class ResolvedDomainTest extends TestCase
     /**
      * @return iterable<array-key, array{host:string|null, publicSuffix:string|null, sld:string|null, expectedSld:string|null, expectedHost:string|null}>
      */
-    public function withSldWorksProvider(): iterable
+    public static function withSldWorksProvider(): iterable
     {
         return [
             [
@@ -595,5 +552,21 @@ final class ResolvedDomainTest extends TestCase
         $domain = ResolvedDomain::fromICANN('private.ulb.ac.be', 2);
 
         self::assertEquals($domain->withSecondLevelDomain('ulb'), $domain);
+    }
+
+    public function testSubDomainCanHandleIpLikeValue(): void
+    {
+        self::assertSame(
+            '1.1.1.1.cloudflare-dns.com',
+            ResolvedDomain::fromICANN('cloudflare-dns.com', 1)->withSubDomain('1.1.1.1')->toString()
+        );
+    }
+
+    public function testSuffixCanHandleIpLikeValue(): void
+    {
+        self::assertSame(
+            'cloudflare-dns.com.1.1.1.1',
+            ResolvedDomain::fromICANN('cloudflare-dns.com.1.1.1.1', 4)->toString()
+        );
     }
 }
